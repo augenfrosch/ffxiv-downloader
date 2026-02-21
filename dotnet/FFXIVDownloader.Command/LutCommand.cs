@@ -137,7 +137,7 @@ public class LutCommand
 
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
 
-        using var thaliak = new ThaliakClient();
+        using var thaliak = new ThaliakClientV2();
 
         var meta = await thaliak.GetRepositoryMetadataAsync(slug, token).ConfigureAwait(false);
         Log.Verbose($"Repository:");

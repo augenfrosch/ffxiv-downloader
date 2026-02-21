@@ -43,7 +43,7 @@ public class DownloadCommand
 
         Regexes = Files.Select(f => new Regex(f, RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase)).ToArray();
 
-        using var thaliak = new ThaliakClient();
+        using var thaliak = new ThaliakClientV2();
 
         var meta = await thaliak.GetRepositoryMetadataAsync(Slug, token).ConfigureAwait(false);
         Log.Verbose($"Repository:");
@@ -56,7 +56,7 @@ public class DownloadCommand
         Log.Info($"Downloading version {version}");
 
         Log.Verbose($"Downloading patch chain");
-        var chain = await thaliak.GetPatchChainAsync(Slug, version, token).ConfigureAwait(false);
+        List<(GameVersion Version, Patch Patch)> chain = await thaliak.GetPatchChainAsync(Slug, version, token).ConfigureAwait(false);
 
         var cache = SkipCache ? new() : await CacheMetadata.GetAsync(OutputPath).ConfigureAwait(false);
         if (cache.FilteredFiles.Any(RegexMatches))

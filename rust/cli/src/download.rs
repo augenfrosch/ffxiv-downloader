@@ -14,7 +14,7 @@ use std::{path::PathBuf, sync::Arc};
 use url::Url;
 use xiv_core::{
     file::{clut::Clut, version::GameVersion},
-    thaliak::get_repository_metadata,
+    thaliak::v2::{get_patch_metadata, get_repository_metadata},
 };
 
 #[derive(Args, Debug, Clone)]
@@ -140,11 +140,11 @@ impl DownloadCommand {
         }
 
         let meta = get_repository_metadata(&self.client, &self.config.slug).await?;
-        let latest_version = GameVersion::new(&meta.latest_version.version_string)?;
+        let latest_version = GameVersion::new(&meta.latest_patch.version_string)?;
         log::info!("Repository:");
         log::info!("  Slug: {}", self.config.slug);
         log::info!("  Name: {}", meta.name);
-        log::info!("  Description: {}", meta.description.unwrap_or_default());
+        log::info!("  Description: {}", meta.description);
         log::info!("  Latest Version: {latest_version}");
 
         let target_version = if let Some(ref version) = self.config.version {
@@ -205,11 +205,12 @@ impl DownloadCommand {
             ClutDiff::from(target_clut)
         };
 
-        if let Some(patch) = meta.latest_version.patches.first() {
-            let mut patch_url = patch.url.parse::<Url>()?;
+        let patch_meta = get_patch_metadata(&self.client, &self.config.slug, &target_version).await?;
+        if true {
+            let mut patch_url = patch_meta.remote_url.parse::<Url>()?;
             patch_url
                 .path_segments_mut()
-                .map_err(|_| anyhow::anyhow!("Failed to parse patch URL: {}", patch.url))?
+                .map_err(|_| anyhow::anyhow!("Failed to parse patch URL: {}", patch_meta.remote_url))?
                 .pop();
             diff.provide_base_patch_url(&patch_url);
         }

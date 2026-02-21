@@ -7,6 +7,8 @@ use crate::thaliak::{
     get_repository_metadata::GetRepositoryMetadataRepository,
 };
 
+pub mod v2;
+
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "src/thaliak/2022-08-14.json",
