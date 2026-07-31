@@ -297,8 +297,7 @@ impl Downloader {
             .get(url)
             .header(header::RANGE, header)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
 
         // A server that will not serve several ranges at once answers with the whole file rather
         // than a 206, which for a patch is tens of megabytes to reach a few kilobytes. The Korean
@@ -316,6 +315,26 @@ impl Downloader {
                 parts.extend(Box::pin(self.request_ranges(url, slice::from_ref(range))).await?);
             }
             return Ok(parts);
+        } else if response.status() == StatusCode::RANGE_NOT_SATISFIABLE && ranges.len() > 1 {
+            // The Chinese CDN seems to arbitrarily only allow 32 ranges at a time, and responds with a 416 when the request contains more
+            // even if they make sense. The below is a very dumb workaround that halves the number of requested ranges recursively,
+            // which obviously comes with the downside of redoing the work to "discover"/avoid the limit each time it is encountered.
+            // TODO: handle this properly (somehow) or at least more sanely
+            drop(response);
+            drop(permit);
+            log::debug!(
+                "{url} returned a 416 Range Not Satisfiable status code for a {}-range request; asking with exponentially decreasing range counts",
+                ranges.len()
+            );
+            let mut parts = Vec::with_capacity(ranges.len());
+            for ranges_chunk in ranges.chunks(ranges.len().div_ceil(2)) {
+                parts.extend(Box::pin(self.request_ranges(url, ranges_chunk)).await?);
+            }
+            return Ok(parts);
+            
+        } else if response.status().is_client_error() || response.status().is_server_error() {
+            response.error_for_status()?;
+            unreachable!();
         }
 
         let boundary = response
