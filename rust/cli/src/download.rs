@@ -139,19 +139,34 @@ impl DownloadCommand {
             log::info!("File Filter: {:?}", self.config.file_patterns);
         }
 
-        let meta = get_repository_metadata(&self.client, &self.config.slug).await?;
-        let latest_version = GameVersion::new(&meta.latest_version.version_string)?;
-        log::info!("Repository:");
-        log::info!("  Slug: {}", self.config.slug);
-        log::info!("  Name: {}", meta.name);
-        log::info!("  Description: {}", meta.description.unwrap_or_default());
-        log::info!("  Latest Version: {latest_version}");
+        let meta = get_repository_metadata(&self.client, &self.config.slug)
+            .await
+            .ok();
+        let latest_version = meta
+            .as_ref()
+            .map(|meta| {
+                let latest_version = GameVersion::new(&meta.latest_version.version_string)?;
+                log::info!("Repository:");
+                log::info!("  Slug: {}", self.config.slug);
+                log::info!("  Name: {}", meta.name);
+                log::info!(
+                    "  Description: {}",
+                    meta.description
+                        .as_ref()
+                        .map(String::as_str)
+                        .unwrap_or_default()
+                );
+                log::info!("  Latest Version: {latest_version}");
+                Ok::<GameVersion, anyhow::Error>(latest_version)
+            })
+            .transpose()?;
 
         let target_version = if let Some(ref version) = self.config.version {
             GameVersion::new(version)
                 .with_context(|| format!("Invalid version specified: {version}"))?
         } else {
             latest_version
+                .context("Repository is not tracked by Thaliak and target version not specified")?
         };
 
         if let Some(cache) = &self.cache
@@ -209,7 +224,9 @@ impl DownloadCommand {
         drop(target_clut);
         drop(source_clut);
 
-        if let Some(patch) = meta.latest_version.patches.first() {
+        if let Some(meta) = meta.as_ref()
+            && let Some(patch) = meta.latest_version.patches.first()
+        {
             let mut patch_url = patch.url.parse::<Url>()?;
             patch_url
                 .path_segments_mut()
